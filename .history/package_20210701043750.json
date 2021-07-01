@@ -1,0 +1,28 @@
+{
+    "name": "memor",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "start": "node serve.js",
+        "dev": "nodemon server/index.js",
+        "heroku-postbuild": "npm install --only=dev --no-shrinkwrap && npm run build"
+    },
+    "keywords": [],
+    "author": "Zahid Ronty",
+    "license": "ISC",
+    "dependencies": {
+        "bcrypt": "^5.0.1",
+        "body-parser": "^1.19.0",
+        "cors": "^2.8.5",
+        "dotenv": "^10.0.0",
+        "express": "^4.17.1",
+        "jsonwebtoken": "^8.5.1",
+        "mongodb": "^3.6.9",
+        "mongoose": "^5.12.14",
+        "vue-router": "^4.0.9"
+    },
+    "devDependencies": {
+        "nodemon": "^2.0.7"
+    }
+}

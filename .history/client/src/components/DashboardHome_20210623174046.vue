@@ -1,0 +1,16 @@
+<template>
+ <div class="flex flex-col rounded-r-3xl">
+  <div class=" shadow-md bg-white mb-2 rounded-t-2xl h-20 py-6 block text-2xl font-bold text-center text-gray-800 dark:text-white lg:text-3xl hover:text-gray-700 dark:hover:text-gray-300">DashBoard</div>
+  <div class=" shadow-lg bg-white">
+   Home
+  </div>
+  
+ </div>
+</template>
+
+<script>
+ export default {
+  name:'DashboardHome'
+ }
+</script>
+

@@ -1,0 +1,25 @@
+<template>
+  <v-container>
+    
+    
+<v-row>  
+  <v-col cols="2">
+ 
+ <v-app-bar/>
+</v-col>
+</v-row>
+  
+    
+
+    
+  
+  </v-container>
+</template>
+
+<script>
+export default {
+  name: 'HelloWorld',
+
+  
+}
+</script>
