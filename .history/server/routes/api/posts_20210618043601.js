@@ -1,1 +1,0 @@
-const posts = require("./routes/api/posts.js");
