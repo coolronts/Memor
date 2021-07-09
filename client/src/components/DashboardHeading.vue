@@ -71,48 +71,7 @@
     created(){
       this.imageBase64 = this.$store.state.user.profile;
       this.userName = this.$store.state.user.username;
-
-      window.setInterval(() => {
-        let a=0;
-        let b=0;
-        let c=0;
-        axios
-        .get('/notifications/'+ this.$store.state.user._id)
-        .then(response => ( this.notifications = response.data.notification))
-        .then(this.notifications.forEach(async element => {
-          const response = await axios.get('/user/'+ element.user)
-          if(this.postedUsers.length < this.notifications.length) {
-            this.postedUsers.push({name:response.data.username,profile:response.data.profile})
-          }else if(this.postedUsers.length == this.notifications.length){
-            if( b < this.notifications.length-1){
-              if(b == this.notifications.length){
-                b = 0
-              }
-              this.postedUsers[b].name = response.data.username;
-              this.postedUsers[b].profile = response.data.profile
-              b++;
-            }
-          }
-          }))
-        .then(this.notifications.forEach(async element => {
-            const response = await axios.get('/post/'+ element.post)
-            if(this.postInfo.length < this.notifications.length) {
-              this.postInfo.push({title:response.data.title})
-            }else if(this.postInfo.length == this.notifications.length){
-            if( c < this.notifications.length-1){
-              if(c == this.notifications.length){
-                c = 0
-              }
-              this.postInfo[c].title = response.data.title;
-              c++;
-            }
-          } 
-        }))
-        .then(this.notifications.forEach(element => {
-          !element.viewed && a++
-        }))
-        .then(this.unreadNotifications = a)        
-      },3000)
+      
     }
   }
 </script>
