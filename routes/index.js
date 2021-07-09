@@ -4,6 +4,16 @@ const User = require("../models/User");
 const Post = require("../models/Post");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const redis = require("redis");
+
+const client = redis.createClient({
+    host: process.env.REDIS_HOST,
+    port: process.env.REDIS_PORT,
+    password: process.env.REDIS_PASSWORD,
+});
+client.on("connect", function() {
+    console.log("You are now connected");
+});
 
 //Register User
 router.post("/register", async(req, res) => {
@@ -59,7 +69,7 @@ function authenticateToken(req, res, next) {
 
 //Get Notification
 router.get("/notifications/:id", async(req, res) => {
-    const notifications = await User.findById(req.params.id);
+    const notifications = await User.find({ _id: req.params.id }, { notification: 1 });
     res.json(notifications);
 });
 
@@ -83,29 +93,124 @@ router.post("/delete_notification/:id", async(req, res) => {
     res.send("done");
 });
 
+//Writing all Posts to Redis
+async function getPosts() {
+    return await Post.find().then((response) => {
+        client.setex("allPosts", 3600, JSON.stringify(response));
+        return response;
+    });
+}
+
+//Writing all Users to Redis
+async function getUsers() {
+    return await User.find().then((response) => {
+        client.setex("allUsers", 3600, JSON.stringify(response));
+        return response;
+    });
+}
+
+setInterval(async function getPost() {
+    return await Post.find().then((response) => {
+        client.setex("allPosts", 3600, JSON.stringify(response));
+        return response;
+    });
+}, 20000);
+
+setInterval(async function getUsers() {
+    return await User.find().then((response) => {
+        client.setex("allUser", 3600, JSON.stringify(response));
+        return response;
+    });
+}, 20000);
+
 //Get User
 router.get("/user/:id", async(req, res) => {
-    const userData = await User.findById(req.params.id, {
-        username: 1,
-        profile: 1,
+    client.get("allUsers", async(err, stringUsers) => {
+        if (err) {
+            throw err;
+        } else {
+            if (!stringUsers) {
+                const fetchedUsers = await getUsers();
+                const foundUser = fetchedUsers.find(
+                    (user) => user._id == req.params.id
+                );
+                res.status(200).send(foundUser);
+            } else {
+                const users = JSON.parse(stringUsers);
+                let foundUser = users.find((user) => user._id === req.params.id);
+                res.send(foundUser);
+            }
+        }
     });
-    res.json(userData);
 });
 
 //Get Post
 router.get("/post/:id", async(req, res) => {
-    const postData = await Post.findById(req.params.id);
-    res.json(postData);
+    client.get("allPosts", async(err, stringPosts) => {
+        if (err) {
+            throw err;
+        } else {
+            if (!stringPosts) {
+                const fetchedPosts = await getPosts();
+                const foundPost = fetchedPosts.find(
+                    (post) => post._id == req.params.id
+                );
+                res.status(200).send(foundPost);
+            } else {
+                const posts = JSON.parse(stringPosts);
+                let foundPost = posts.find((post) => post._id === req.params.id);
+                res.send(foundPost);
+            }
+        }
+    });
 });
 
 //Get All Post
 router.get("/allPosts", async(req, res) => {
-    const posts = await Post.find();
-    res.send(posts);
+    try {
+        client.get("allPosts", async(err, posts) => {
+            if (err) {
+                throw err;
+            } else {
+                if (posts) {
+                    res.status(200).send(posts);
+                } else {
+                    const fetchedPosts = await getPosts();
+                    res.status(200).send(fetchedPosts);
+                }
+            }
+        });
+    } catch (err) {
+        res.status(500).send({ message: err.message });
+    }
 });
 
 //Get All User Posts
 router.get("/user_posts/:id", authenticateToken, async(req, res) => {
+    try {
+        client.get("allPosts", async(err, stringPosts) => {
+            if (err) {
+                throw err;
+            } else {
+                if (!stringPosts) {
+                    const stringPosts = await getPosts();
+                    const foundPosts = stringPosts.filter(
+                        (posts) => posts.userId == req.params.id
+                    );
+                    res.status(200).send(foundPosts);
+                } else {
+                    const posts = JSON.parse(stringPosts);
+                    const foundPosts = posts.filter(
+                        (userPosts) => userPosts.userId == req.params.id
+                    );
+                    res.status(200).send(foundPosts);
+                }
+            }
+        });
+    } catch (err) {
+        res.status(500).send({ message: err.message });
+    }
+
     const posts = await Post.find({ userId: req.params.id });
     res.send(posts);
 });
@@ -202,6 +307,8 @@ router.post("/update_likes", authenticateToken, async(req, res) => {
                 },
             },
         });
+        getPosts();
+
         res.send(response);
     } else {
         const response = await Post.findOneAndUpdate({ _id: req.body.postId }, {
@@ -217,28 +324,64 @@ router.post("/update_likes", authenticateToken, async(req, res) => {
                 },
             },
         });
+        getPosts();
+
         res.send(response);
     }
 });
 
 //Update Title of the Post
 router.post("/update_post_title/:id", authenticateToken, async(req, res) => {
-    await Post.findOneAndUpdate({ _id: req.params.id }, {
-        $set: { title: req.body.title },
+    client.get("allPosts", async(err, stringPosts) => {
+        if (err) {
+            throw err;
+        } else {
+            if (!stringPosts) {
+                await Post.findOneAndUpdate({ _id: req.params.id }, {
+                    $set: { title: req.body.title },
+                }).then((post) => {
+                    res.send(post);
+                });
+                getPosts();
+            } else {
+                const posts = JSON.parse(stringPosts);
+                let foundPost = posts.find((post) => post._id == req.params.id);
+                foundPost.title = req.body.title;
+                res.send(foundPost);
+                await Post.findOneAndUpdate({ _id: req.params.id }, {
+                    $set: { title: req.body.title },
+                });
+            }
+            getPosts();
+        }
     });
-    const post = await Post.findOne({ _id: req.body.id });
-
-    res.send(post);
 });
 
 //Update Place of the Post
 router.post("/update_post_place/:id", authenticateToken, async(req, res) => {
-    await Post.findOneAndUpdate({ _id: req.params.id }, {
-        $set: { place: req.body.place },
+    client.get("allPosts", async(err, stringPosts) => {
+        if (err) {
+            throw err;
+        } else {
+            Post.findOneAndUpdate({ _id: req.params.id }, {
+                $set: { place: req.body.place },
+            });
+            if (!stringPosts) {
+                await getPosts()
+                    .then((response) =>
+                        JSON.parse(response).find((post) => post._id === req.params.id)
+                    )
+                    .then((foundPost) => (foundPost.place = req.body.place))
+                    .then((post) => res.send(post));
+            } else {
+                const posts = JSON.parse(stringPosts);
+                let foundPost = posts.find((post) => post._id === req.params.id);
+                foundPost.place = req.body.place;
+                res.send(foundPost);
+            }
+            getPosts();
+        }
     });
-    const post = await Post.findOne({ _id: req.body.id });
-
-    res.send(post);
 });
 
 //Update Description of the Post
@@ -246,12 +389,34 @@ router.post(
     "/update_post_description/:id",
     authenticateToken,
     async(req, res) => {
-        await Post.findOneAndUpdate({ _id: req.params.id }, {
-            $set: { description: req.body.description },
+        client.get("allPosts", async(err, stringPosts) => {
+            if (err) {
+                throw err;
+            } else {
+                if (!stringPosts) {
+                    await getPosts()
+                        .then((response) =>
+                            JSON.parse(response).find((post) => post._id === req.params.id)
+                        )
+                        .then((foundPost) => (foundPost.description = req.body.description))
+                        .then((post) => res.send(post))
+                        .then(
+                            Post.findOneAndUpdate({ _id: req.params.id }, {
+                                $set: { description: req.body.description },
+                            })
+                        );
+                } else {
+                    const posts = JSON.parse(stringPosts);
+                    let foundPost = posts.find((post) => post._id === req.params.id);
+                    foundPost.description = req.body.description;
+                    res.send(foundPost);
+                    Post.findOneAndUpdate({ _id: req.params.id }, {
+                        $set: { description: req.body.description },
+                    });
+                }
+                getPosts();
+            }
         });
-        const post = await Post.findOne({ _id: req.body.id });
-
-        res.send(post);
     }
 );
 
